@@ -1,31 +1,30 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { createRoom } from "../services/roomService";
-import { getOrCreatePlayerId, rememberName, recallName } from "../utils/identity";
+import { generateRoomCode } from "../utils/generateRoomCode";
+import { rememberName, recallName } from "../utils/identity";
 
 export default function CreateRoomPage() {
   const navigate = useNavigate();
   const [name, setName] = useState(recallName());
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async () => {
+  const submit = () => {
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Please enter your name.");
       return;
     }
-    setLoading(true);
-    setError(null);
+    const code = generateRoomCode(5);
+    rememberName(trimmed);
     try {
-      const playerId = getOrCreatePlayerId();
-      rememberName(trimmed);
-      const { code } = await createRoom(playerId, trimmed);
-      navigate(`/room/${code}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create room.");
-      setLoading(false);
+      // Mark this browser as the HOST of this code, and clear any old saved
+      // room so we start fresh. useGame reads these on the room screen.
+      localStorage.setItem(`cl_host_${code}`, trimmed);
+      localStorage.removeItem(`cl_room_${code}`);
+    } catch {
+      /* ignore storage issues */
     }
+    navigate(`/room/${code}`);
   };
 
   return (
@@ -35,8 +34,9 @@ export default function CreateRoomPage() {
       </Link>
       <h1 className="text-3xl font-black text-white">Create a Room</h1>
       <p className="text-sm text-slate-300">
-        You'll be the host. You'll get a 5-letter code and a shareable link on the
-        next screen.
+        You'll be the host. You'll get a room code and a shareable link to send
+        your friends — no sign-up, no app. Keep this tab open while you play; it
+        runs the game for everyone.
       </p>
 
       <label className="text-sm font-semibold text-slate-200">
@@ -49,19 +49,16 @@ export default function CreateRoomPage() {
           placeholder="e.g. Captain Chaos"
           className="mt-1 w-full rounded-xl bg-white/10 px-4 py-3 text-white outline-none ring-1 ring-white/15 focus:ring-emerald-400"
         />
-        <span className="mt-1 block text-right text-[11px] text-slate-500">
-          {name.length}/14
-        </span>
+        <span className="mt-1 block text-right text-[11px] text-slate-500">{name.length}/14</span>
       </label>
 
       {error && <p className="text-sm text-rose-400">{error}</p>}
 
       <button
         onClick={submit}
-        disabled={loading}
-        className="rounded-2xl bg-emerald-500 py-4 text-lg font-bold text-white active:scale-95 disabled:bg-slate-600"
+        className="rounded-2xl bg-emerald-500 py-4 text-lg font-bold text-white active:scale-95"
       >
-        {loading ? "Creating…" : "Create Room"}
+        Create Room
       </button>
     </div>
   );

@@ -1,33 +1,21 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { joinRoom } from "../services/roomService";
-import { getOrCreatePlayerId, rememberName, recallName } from "../utils/identity";
+import { rememberName, recallName } from "../utils/identity";
 
 export default function JoinRoomPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [name, setName] = useState(recallName());
   const [code, setCode] = useState((params.get("code") || "").toUpperCase());
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async () => {
+  const submit = () => {
     const n = name.trim();
     const c = code.trim().toUpperCase();
     if (!n) return setError("Please enter your name.");
     if (c.length < 4) return setError("Enter the room code from the host.");
-    setLoading(true);
-    setError(null);
-    try {
-      const playerId = getOrCreatePlayerId();
-      rememberName(n);
-      await joinRoom(c, playerId, n);
-      navigate(`/room/${c}`);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not join room.";
-      setError(msg === "ROOM_NOT_FOUND" ? "No room with that code. Check it and try again." : msg);
-      setLoading(false);
-    }
+    rememberName(n);
+    navigate(`/room/${c}`);
   };
 
   return (
@@ -36,6 +24,9 @@ export default function JoinRoomPage() {
         ← Back
       </Link>
       <h1 className="text-3xl font-black text-white">Join a Room</h1>
+      <p className="text-sm text-slate-300">
+        Enter your name and the code the host shared. No account needed.
+      </p>
 
       <label className="text-sm font-semibold text-slate-200">
         Your name
@@ -64,10 +55,9 @@ export default function JoinRoomPage() {
 
       <button
         onClick={submit}
-        disabled={loading}
-        className="rounded-2xl bg-emerald-500 py-4 text-lg font-bold text-white active:scale-95 disabled:bg-slate-600"
+        className="rounded-2xl bg-emerald-500 py-4 text-lg font-bold text-white active:scale-95"
       >
-        {loading ? "Joining…" : "Join Room"}
+        Join Room
       </button>
     </div>
   );

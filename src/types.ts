@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------
 // Shared types for Chaos Ladder.
-// The whole game lives in ONE Firestore document: rooms/{roomCode}.
-// This makes real-time sync trivial (one onSnapshot) and lets us mutate the
-// game atomically inside Firestore transactions to avoid race conditions.
+// The whole game lives in ONE Room object held by the HOST's browser. The host
+// is authoritative: it mutates this object and broadcasts full snapshots to
+// every peer over WebRTC data channels. Keeping all state in one object makes
+// sync trivial (send the whole thing) and the logic deterministic.
 // ---------------------------------------------------------------------------
 
 export type TileType =
@@ -94,9 +95,12 @@ export interface PendingEvent {
   effectText: string; // plain explanation of the mechanical effect
   forPlayerId: string; // who the event is "about" / who resolves it (for collab/challenge)
   emoji?: string;
-  // vote events:
+  // vote / challenge events:
   options?: VoteOption[];
   voteEndsAt?: number; // ms epoch
+  // who is allowed to vote: "all" players, or "others" (everyone except the
+  // player the event is about — used for peer-judged challenges).
+  voterScope?: "all" | "others";
   // collab events: list of selectable target player ids is computed in UI
   collabKind?: "save" | "hurt" | "help";
   // power grant:

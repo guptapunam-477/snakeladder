@@ -1,12 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
 import type { Room, RoomSettings } from "../types";
-import {
-  startGame,
-  updateSettings,
-  kickPlayer,
-} from "../services/roomService";
-import { leaveRoom } from "../services/playerService";
+import type { Action } from "../net/protocol";
 import PlayerList from "../components/PlayerList";
 import {
   CHALLENGE_MODES,
@@ -19,17 +13,13 @@ import {
 
 interface Props {
   room: Room;
-  playerId: string;
+  myId: string;
   isHost: boolean;
+  dispatch: (a: Action) => void;
+  onLeave: () => void;
 }
 
-function SettingRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function SettingRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 py-1.5">
       <span className="text-sm text-slate-300">{label}</span>
@@ -38,43 +28,21 @@ function SettingRow({
   );
 }
 
-export default function LobbyPage({ room, playerId, isHost }: Props) {
-  const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+export default function LobbyPage({ room, myId, isHost, dispatch, onLeave }: Props) {
+  const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const shareUrl = `${window.location.origin}/join?code=${room.code}`;
 
-  const copy = async (text: string) => {
+  const copy = async (text: string, which: "code" | "link") => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setCopied(which);
+      setTimeout(() => setCopied(null), 1500);
     } catch {
-      /* clipboard blocked — user can select manually */
+      /* clipboard blocked */
     }
   };
 
-  const setS = async (patch: Partial<RoomSettings>) => {
-    try {
-      await updateSettings(room.code, playerId, patch);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update settings.");
-    }
-  };
-
-  const onStart = async () => {
-    try {
-      await startGame(room.code, playerId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start.");
-    }
-  };
-
-  const onLeave = async () => {
-    await leaveRoom(room.code, playerId);
-    navigate("/");
-  };
+  const setS = (patch: Partial<RoomSettings>) => dispatch({ kind: "updateSettings", settings: patch });
 
   const Pill = ({
     active,
@@ -89,9 +57,7 @@ export default function LobbyPage({ room, playerId, isHost }: Props) {
       disabled={!isHost}
       onClick={onClick}
       className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-        active
-          ? "bg-emerald-500 text-white"
-          : "bg-white/10 text-slate-300"
+        active ? "bg-emerald-500 text-white" : "bg-white/10 text-slate-300"
       } ${isHost ? "active:scale-95" : "opacity-80"}`}
     >
       {children}
@@ -107,29 +73,25 @@ export default function LobbyPage({ room, playerId, isHost }: Props) {
         </button>
       </div>
 
-      {/* Room code + share */}
       <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
         <p className="text-xs text-slate-400">Room code — share it with friends</p>
         <div className="mt-1 flex items-center justify-between">
-          <span className="text-4xl font-black tracking-[0.25em] text-emerald-300">
-            {room.code}
-          </span>
+          <span className="text-4xl font-black tracking-[0.25em] text-emerald-300">{room.code}</span>
           <button
-            onClick={() => copy(room.code)}
+            onClick={() => copy(room.code, "code")}
             className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold active:scale-95"
           >
-            {copied ? "Copied!" : "Copy code"}
+            {copied === "code" ? "Copied!" : "Copy code"}
           </button>
         </div>
         <button
-          onClick={() => copy(shareUrl)}
+          onClick={() => copy(shareUrl, "link")}
           className="mt-2 w-full truncate rounded-lg bg-white/5 px-3 py-2 text-left text-xs text-slate-300 active:scale-[0.99]"
         >
-          🔗 {shareUrl}
+          {copied === "link" ? "Link copied!" : `🔗 ${shareUrl}`}
         </button>
       </div>
 
-      {/* Players */}
       <div>
         <h2 className="mb-2 text-sm font-bold text-slate-200">
           Players ({room.players.length}/{MAX_PLAYERS})
@@ -137,19 +99,19 @@ export default function LobbyPage({ room, playerId, isHost }: Props) {
         <PlayerList
           players={room.players}
           hostId={room.hostId}
-          meId={playerId}
+          meId={myId}
           showKick={isHost}
-          onKick={(id) => kickPlayer(room.code, playerId, id).catch(() => {})}
+          onKick={(id) => dispatch({ kind: "kick", targetId: id })}
         />
         {room.players.length < 2 && (
           <p className="mt-2 text-xs text-amber-300">Waiting for at least 1 more player…</p>
         )}
       </div>
 
-      {/* Settings */}
       <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
         <h2 className="mb-1 text-sm font-bold text-slate-200">
-          Game settings {!isHost && <span className="text-xs font-normal text-slate-500">(host controls these)</span>}
+          Game settings{" "}
+          {!isHost && <span className="text-xs font-normal text-slate-500">(host controls these)</span>}
         </h2>
         <SettingRow label="Game speed">
           {SPEED_OPTIONS.map((s) => (
@@ -160,11 +122,7 @@ export default function LobbyPage({ room, playerId, isHost }: Props) {
         </SettingRow>
         <SettingRow label="Turn timer">
           {TIMER_OPTIONS.map((t) => (
-            <Pill
-              key={t}
-              active={room.settings.turnTimerSeconds === t}
-              onClick={() => setS({ turnTimerSeconds: t })}
-            >
+            <Pill key={t} active={room.settings.turnTimerSeconds === t} onClick={() => setS({ turnTimerSeconds: t })}>
               {t}s
             </Pill>
           ))}
@@ -202,11 +160,9 @@ export default function LobbyPage({ room, playerId, isHost }: Props) {
         <p className="mt-1 text-[11px] text-slate-400">{THEME_BLURB[room.settings.theme]}</p>
       </div>
 
-      {error && <p className="text-sm text-rose-400">{error}</p>}
-
       {isHost ? (
         <button
-          onClick={onStart}
+          onClick={() => dispatch({ kind: "start" })}
           disabled={room.players.length < 2}
           className="rounded-2xl bg-emerald-500 py-4 text-lg font-bold text-white active:scale-95 disabled:bg-slate-600"
         >

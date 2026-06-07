@@ -13,9 +13,9 @@ import {
 import { rankingIds } from "./ranking";
 
 // ---------------------------------------------------------------------------
-// Pure-ish game logic. Every function here MUTATES a plain Room object that is
-// a working copy obtained inside a Firestore transaction. Nothing here touches
-// Firebase directly — that keeps the rules testable and deterministic.
+// Pure-ish game logic. Every function here MUTATES the plain Room object held
+// by the authoritative host. Nothing here touches the network — that keeps the
+// rules testable and deterministic.
 // ---------------------------------------------------------------------------
 
 let idCounter = 0;
@@ -211,6 +211,7 @@ export function applyChaosEvent(
           { id: "challenge", label: "Make them do a funny challenge" },
         ],
         voteEndsAt: Date.now() + 20000,
+        voterScope: "all",
       };
     }
     case "betrayal": {
@@ -307,11 +308,21 @@ export function resolveLanding(room: Room, player: Player): PendingEvent | null 
 
     case "challenge": {
       const prompt = pick(CHALLENGE_PROMPTS[room.settings.challengeMode]);
-      pushFeed(room, { type: "challenge", emoji: "🎤", message: `${player.name} landed on a challenge tile.` });
+      pushFeed(room, { type: "challenge", emoji: "🎤", message: `${player.name} must perform a challenge — the others will judge!` });
       return {
-        id: uid("ev"), type: "challenge", title: "Challenge Tile!",
-        description: prompt, effectText: "Perform it, then tap Done. (Just for fun — no tile penalty.)",
-        forPlayerId: player.id, emoji: "🎤",
+        id: uid("ev"),
+        type: "challenge",
+        title: "Challenge — perform it live!",
+        description: prompt,
+        effectText: "If most of your friends approve → forward 3 tiles. If not → back 2 tiles. Stakes are real!",
+        forPlayerId: player.id,
+        emoji: "🎤",
+        options: [
+          { id: "good", label: "👍 Nailed it" },
+          { id: "bad", label: "👎 Nope" },
+        ],
+        voterScope: "others",
+        voteEndsAt: Date.now() + 25000,
       };
     }
 
@@ -324,6 +335,7 @@ export function resolveLanding(room: Room, player: Player): PendingEvent | null 
         forPlayerId: player.id, emoji: v.emoji,
         options: v.options.map((o) => ({ id: o.id, label: o.label })),
         voteEndsAt: Date.now() + 20000,
+        voterScope: "all",
         // stash the source vote id so resolution knows the effects
         collabKind: undefined,
         grantedCardId: v.id,

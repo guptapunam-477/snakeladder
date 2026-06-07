@@ -1,113 +1,57 @@
 # 🪜⚡🐍 Chaos Ladder
 
-A fast, funny, 2–5 player **private-room party game** — Snakes & Ladders reimagined as a chaotic office/house-party romp. Players open a URL on their phone or laptop, join a room with a 5-letter code, and race to tile 50 while the board throws dares, votes, sabotage, power cards, and questionable alliances at them.
+A fast, funny, 2–5 player **private-room party game** — Snakes & Ladders reimagined as a chaotic office/house-party romp. Friends open a link on their phone or laptop, join with a room code, and race to tile 50 while the board throws dares, votes, sabotage, power cards, and questionable alliances at them.
 
-- **No install** — just a browser (Chrome, Safari, Edge, Firefox; mobile, tablet, desktop).
-- **Real-time** — built on Firebase Firestore live listeners.
-- **Deployable on Netlify** in a couple of minutes.
+- **No install, no accounts, no login.** Just open a URL and play.
+- **No backend to set up.** It runs **peer-to-peer** in the browser (WebRTC) — there's no server and no database to configure.
+- **Deployable on Netlify** as a plain static site in two minutes.
 - **10–18 minute** games on a fast 50-tile board.
 
 ---
 
-## Table of contents
+## How the online play works (read this first)
 
-1. [Quick start](#quick-start)
-2. [Firebase setup (exact steps)](#firebase-setup-exact-steps)
-3. [Run locally + test from your phone](#run-locally--test-from-your-phone)
-4. [Deploy to Netlify (exact steps)](#deploy-to-netlify-exact-steps)
-5. [How the game works](#how-the-game-works)
-6. [Architecture & key decisions](#architecture--key-decisions)
-7. [Project structure](#project-structure)
-8. [Edge cases handled](#edge-cases-handled)
-9. [Testing checklist](#testing-checklist)
-10. [Troubleshooting](#troubleshooting)
-11. [Customization guide](#customization-guide)
-12. [MVP vs. optional/advanced](#mvp-vs-optionaladvanced)
+Chaos Ladder is **host-authoritative and serverless**:
+
+- Whoever taps **Create Room** becomes the **host**. Their browser tab runs the actual game and acts as the "server" for everyone.
+- Everyone else **joins with the room code** and connects directly to the host over a peer-to-peer data channel (brokered by the free public PeerJS signalling service — no account needed).
+- The host keeps the real game state and broadcasts it to all players in real time.
+
+**What this means in practice:**
+
+- ✅ No Firebase, no `.env`, no API keys, no logins. Deploy and play.
+- ⚠️ **The host must keep their tab open** for the whole game — if the host closes the tab, the game ends for everyone. (The host *can* refresh; the game auto-resumes from the host's saved state, and players auto-reconnect.)
+- ⚠️ A small minority of **very strict corporate/VPN networks** can block direct peer connections (there's no TURN relay configured by default). On home Wi-Fi and mobile data it works for the vast majority of people. See [Troubleshooting](#troubleshooting) to add a TURN server if you need bulletproof connectivity.
+
+This is the classic "Jackbox-style" model — perfect for a small group of friends.
 
 ---
 
-## Quick start
+## Quick start (local)
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Add your Firebase keys
-cp .env.example .env
-#    ...then edit .env with values from your Firebase project (see below)
-
-# 3. Run it
-npm run dev
-#    open the printed URL (e.g. http://localhost:5173)
-```
-
-You need a (free) Firebase project for real-time multiplayer. It takes ~3 minutes — steps below.
-
----
-
-## Firebase setup (exact steps)
-
-1. Go to <https://console.firebase.google.com> and click **Add project**. Name it (e.g. `chaos-ladder`). You can disable Google Analytics. Click **Create project**.
-
-2. **Create a Firestore database:**
-   - In the left sidebar: **Build → Firestore Database → Create database**.
-   - Choose a location near your players.
-   - Start in **Production mode** (we'll paste real rules in a moment).
-
-3. **Enable Anonymous Authentication** (the app signs each browser in anonymously so the security rules can require an authenticated user):
-   - Left sidebar: **Build → Authentication → Get started**.
-   - **Sign-in method** tab → **Anonymous** → enable → **Save**.
-
-4. **Register a Web App and copy your config:**
-   - Project Overview (gear icon) → **Project settings** → scroll to **Your apps** → click the **`</>`** (Web) icon.
-   - Give it a nickname, **don't** enable Hosting, click **Register app**.
-   - Copy the `firebaseConfig` values into your `.env` file:
-
-   ```env
-   VITE_FIREBASE_API_KEY=AIza...
-   VITE_FIREBASE_AUTH_DOMAIN=chaos-ladder.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=chaos-ladder
-   VITE_FIREBASE_STORAGE_BUCKET=chaos-ladder.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=1234567890
-   VITE_FIREBASE_APP_ID=1:1234567890:web:abc123
-   ```
-
-   > These are **public client keys** — it's normal and safe for them to ship in the browser bundle. Your data is protected by the Firestore **rules**, not by hiding the keys.
-
-5. **Publish the security rules:**
-   - Open `firestore.rules` from this repo, copy its contents.
-   - Firebase Console → **Firestore Database → Rules** tab → paste → **Publish**.
-   - (Or, if you use the Firebase CLI: `firebase deploy --only firestore:rules`.)
-
-That's it. Restart `npm run dev` after editing `.env` (Vite only reads env vars at startup).
-
----
-
-## Run locally + test from your phone
-
-```bash
 npm run dev
 ```
 
-Vite is configured with `host: true`, so it also prints a **Network** URL like `http://192.168.1.42:5173`. As long as your phone is on the **same Wi-Fi**, open that URL on the phone to join a room created on your laptop — a great way to test multiplayer before deploying.
+Open the printed URL (e.g. `http://localhost:5173`). Vite also prints a **Network** URL like `http://192.168.1.42:5173` — open that on your phone (same Wi-Fi) to test multiplayer across devices.
 
-For the most realistic test (different networks, mobile data), deploy to Netlify first (below) and share that URL.
+That's it. There's nothing else to configure.
 
 ---
 
 ## Deploy to Netlify (exact steps)
 
-This repo already includes `netlify.toml` and `public/_redirects`, which configure the build and the SPA fallback (so deep links like `/room/ABCDE` survive a refresh).
+This repo includes `netlify.toml` and `public/_redirects`, which set the build and the SPA fallback (so deep links like `/room/ABCDE` survive a refresh). There are **no environment variables to set**.
 
 **Option A — Git (recommended):**
 
 1. Push this folder to a GitHub/GitLab repo.
 2. In Netlify: **Add new site → Import an existing project** → pick the repo.
-3. Netlify auto-detects the settings from `netlify.toml`:
+3. Netlify auto-detects from `netlify.toml`:
    - **Build command:** `npm run build`
    - **Publish directory:** `dist`
-4. Before the first deploy, add your environment variables: **Site settings → Environment variables → Add a variable** (or "Import from a .env file"). Add all six `VITE_FIREBASE_*` values from your `.env`.
-5. **Deploy site.** You'll get a URL like `https://chaos-ladder.netlify.app`.
+4. **Deploy site.** You'll get a URL like `https://chaos-ladder.netlify.app`. Share it with friends.
 
 **Option B — Netlify CLI:**
 
@@ -115,186 +59,130 @@ This repo already includes `netlify.toml` and `public/_redirects`, which configu
 npm i -g netlify-cli
 npm run build
 netlify deploy --prod --dir=dist
-# set env vars in the Netlify UI (Site settings → Environment variables) and redeploy
 ```
 
-> **Important:** environment variables must be set in Netlify **before** the build runs — Vite inlines them at build time. If you add them later, trigger a new deploy (**Deploys → Trigger deploy → Clear cache and deploy site**).
+> Tip: the host should open the deployed URL, create the room, and share the **room code or the join link** (the lobby has copy buttons for both).
 
 ---
 
-## How the game works
+## How the game plays
 
-- **Board:** 50 tiles in a serpentine grid (5 columns × 10 rows). Tile 1 is the start, tile 50 is the finish. Tile types are randomly distributed at room creation: `normal` (~40%), `ladder` (12%), `snake` (12%), `chaos` (14%), `challenge` (8%), `vote` (6%), `power` (4%), `collab` (4%).
-- **Turns:** players take turns. Only the current player can roll (1–6). The token auto-moves. A turn timer (15/30/45s, host-configurable) auto-rolls or skips on timeout.
+- **Board:** 50 tiles in a serpentine grid (5 × 10). Tile 1 is start, tile 50 is the finish (ringed in gold). Ladders and snakes are drawn as green/red connectors between tiles. Tile types are randomised per game.
+- **Turns:** only the current player can roll (1–6); the token slides to its new spot. A turn timer (15/30/45s, host-set) auto-rolls or skips on timeout.
 - **Overshoot rule:** rolling past 50 still lands you on 50 (keeps games short). First to 50 wins.
-- **Tile effects:**
+- **Tile effects — every one has real stakes:**
   - 🪜 **Ladder / 🐍 Snake** — jump forward / slide back.
-  - ⚡ **Chaos** — a random funny event (Corporate Restructure, Budget Cut, Fake Promotion, HR Complaint vote, Best-Friend Betrayal, Lucky Intern reroll, …).
-  - 🎤 **Challenge** — perform a silly prompt (prompts respect the host's "Challenge Mode" so it stays office/family friendly).
-  - 🗳️ **Vote** — everyone votes on the current player's fate (back/forward/challenge). Majority wins; ties favour mercy.
+  - ⚡ **Chaos** — a random funny event with a real consequence (Corporate Restructure swap, Budget Cut, Fake Promotion, HR Complaint vote, Best-Friend Betrayal, Lucky Intern reroll, …).
+  - 🎤 **Challenge** — you perform a silly prompt **live, and your friends judge you**: most 👍 = forward 3 tiles, most 👎 = back 2. (Prompts respect the host's "Challenge Mode" so it stays office/family friendly.)
+  - 🗳️ **Vote** — everyone votes on your fate (back/forward/challenge). Majority wins; ties favour mercy.
   - 🃏 **Power** — draw a power card (Extra Dice, Shield, Friendship Tax, Chaos Bomb, Ladder Insurance, Swap Token).
-  - 🤝 **Collab** — choose another player to help (or, via Betrayal chaos, to hurt — they get a revenge Shield).
-- **Final-round chaos:** once anyone crosses tile 40, a "Final Chaos" flag flips on (surfaced in the UI) to signal the spicy endgame.
-- **Winner screen:** final standings + auto-computed **funny awards** (Snake Magnet, Luckiest Intern, Chaos King, …) based on per-player stats tracked all game. Host can **Play Again** (resets to the lobby with a fresh board).
+  - 🤝 **Collab** — choose another player to help forward 3 (or, via Betrayal chaos, to knock back — they get a revenge Shield).
+- **Final-round chaos:** once anyone crosses tile 40, "Final Chaos" flips on for a spicy endgame.
+- **Winner screen:** final standings + auto-computed **funny awards** (Snake Magnet, Luckiest Intern, Chaos King, …) from stats tracked all game. Host can **Play Again** to reset with a fresh board.
 
 ---
 
 ## Architecture & key decisions
 
-**One document, transactional mutations.** Instead of separate `rooms` / `players` / `gameEvents` / `votes` collections, the *entire* game state lives in a single Firestore document, `rooms/{CODE}`. This was a deliberate choice:
+**One object, one authority.** The entire game state is a single `Room` object (`src/types.ts`). The host holds it, mutates it through a pure reducer, and broadcasts full snapshots. Clients are thin: they send **actions** ("roll", "vote", …) and render whatever snapshot arrives. This removes whole categories of bugs — there's exactly one source of truth and one place that applies rules, so "two players roll at once" simply can't double-apply (the host processes actions one at a time and re-validates each).
 
-- **Real-time sync is one `onSnapshot`.** Every client subscribes to the one document and re-renders on any change — no fan-out across collections, no partial/inconsistent views.
-- **Atomicity kills race conditions.** Every action (roll, vote, power card, collab) runs inside a Firestore **transaction** (`runTransaction`) that reads the current room, validates the rules (is it your turn? are you the host? is a roll already in progress?), mutates a working copy, and writes it back atomically. Two players hammering the dice button at once cannot double-move — the second transaction sees the updated `turnIndex`/`rolling` state and is rejected.
-- **Refresh/reconnect is trivial.** A player's identity is a stable id in `localStorage`; on reload we just re-subscribe and the player maps back to their token.
+**Why peer-to-peer instead of a database.** The original build used Firebase, which is reliable but forces a one-time setup (project, keys, rules) on whoever deploys it. For a casual, invite-by-code game with friends, that setup is the main friction. WebRTC data channels (via PeerJS's free broker) give real-time multiplayer with **zero setup and zero accounts** — you trade a little robustness (host tab must stay open; rare strict-network failures) for "deploy once and just play."
 
-The trade-off is that the doc is rewritten on each action and the event feed is capped (last 40 items) to keep it small — totally fine for a 2–5 player, ~15-minute game. If you wanted spectators-at-scale or long histories, you'd split events into a subcollection.
-
-The conceptual schema from the brief still maps onto the document (`players[]`, `feed[]`, `votes{}`, `settings`, `turnIndex`, `winnerId`, …) — see `src/types.ts`.
-
-**Where the rules live.** Authoritative game logic runs in the transaction callbacks in `src/services/*` + `src/utils/*` (pure, testable functions). Firestore Security Rules (`firestore.rules`) enforce the coarse boundary: you must be authenticated, you can only touch the `rooms` collection, and the player list can't exceed 5. Fine-grained "only the current player may roll" is enforced in the transaction, not in rules (replicating full game logic in the rules language is impractical). See the README's stricter-rules note if you need server-authoritative moves.
-
----
-
-## Project structure
+**Layout of the important pieces:**
 
 ```
-chaos-ladder/
-├─ index.html
-├─ package.json
-├─ vite.config.ts
-├─ netlify.toml                # build command + SPA redirect
-├─ firestore.rules             # paste into Firebase console
-├─ .env.example                # copy to .env, add your keys
-├─ public/_redirects           # SPA fallback (belt & suspenders)
-└─ src/
-   ├─ main.tsx                 # React + Router bootstrap
-   ├─ App.tsx                  # routes
-   ├─ index.css                # Tailwind + small base styles
-   ├─ firebase.ts              # Firebase init + anonymous auth
-   ├─ types.ts                 # all shared types (the Room document)
-   ├─ gameConfig.ts            # tunables: tiles, chaos events, challenges, cards, awards, themes
-   ├─ vite-env.d.ts
-   ├─ utils/
-   │  ├─ generateRoomCode.ts   # short, unambiguous codes
-   │  ├─ dice.ts
-   │  ├─ board.ts              # 50-tile serpentine board generation
-   │  ├─ resolveTileEffect.ts  # core landing/effect resolution (pure)
-   │  ├─ turn.ts               # advance-turn / roll-again logic
-   │  ├─ ranking.ts
-   │  ├─ awards.ts             # funny end-game awards
-   │  └─ identity.ts           # localStorage player id, avatar/colour assignment
-   ├─ services/
-   │  ├─ db.ts                 # withRoom() transaction helper
-   │  ├─ factories.ts          # makeRoom / makePlayer
-   │  ├─ roomService.ts        # create/join/start/restart/end/settings/kick
-   │  ├─ playerService.ts      # presence heartbeat, leave/disconnect
-   │  ├─ gameService.ts        # rollDice, acknowledge, collab, power cards, timeout
-   │  └─ voteService.ts        # castVote, resolveVoteIfDue
-   ├─ hooks/
-   │  └─ useRoom.ts            # live subscription + timers + presence
-   ├─ components/
-   │  ├─ Board.tsx  Tile.tsx  PlayerToken.tsx
-   │  ├─ Dice.tsx   Timer.tsx  Confetti.tsx
-   │  ├─ PlayerList.tsx  EventFeed.tsx
-   │  ├─ PowerCards.tsx  VotePanel.tsx  EventModal.tsx
-   └─ pages/
-      ├─ LandingPage.tsx  CreateRoomPage.tsx  JoinRoomPage.tsx
-      ├─ RoomPage.tsx          # routes to Lobby/Game/Winner by status
-      ├─ LobbyPage.tsx  GamePage.tsx  WinnerPage.tsx
+src/
+├─ net/
+│  ├─ protocol.ts        # message + action types, host peer-id, STUN servers
+│  └─ peer.ts            # PeerHost + PeerClient (WebRTC wrappers, auto-reconnect)
+├─ game/
+│  └─ engine.ts          # host-authoritative reducer: createRoom, join, applyAction, tickTimers
+├─ hooks/
+│  └─ useGame.ts         # wires host/client networking to the engine; exposes dispatch()
+├─ utils/                # PURE game logic (board, dice, tile effects, turns, ranking, awards)
+├─ services/factories.ts # makeRoom / makePlayer
+├─ components/           # Board (SVG connectors + animated tokens), Dice, EventModal, VotePanel, …
+└─ pages/                # Landing, Create, Join, Room (host/client view), Lobby, Game, Winner
 ```
+
+The game-logic in `utils/` is deliberately free of any networking, so it's deterministic and easy to unit-test.
 
 ---
 
 ## Edge cases handled
 
-- **Player refreshes the browser** → stable `localStorage` id re-binds to their token; the live listener restores state.
-- **Player disconnects / backgrounds the tab** → marked disconnected (token dimmed); they can rejoin. Turn timer keeps the game moving.
-- **Host disconnects/leaves in lobby** → host role transfers to the next player automatically.
-- **Room code not found** → friendly "Room not found" screen.
-- **Room already active / completed when joining** → join is blocked with a clear message (rejoin works if you were already in it).
-- **Room full (5 players)** → join rejected.
-- **Duplicate player names** → rejected (case-insensitive).
-- **Two players click the dice simultaneously** → transaction + `turnIndex`/`rolling` checks ensure exactly one roll applies.
-- **Votes not completed before timer** → host's client resolves the vote at `voteEndsAt` by majority (ties favour the first option).
-- **Turn timeout** → auto-roll or skip per the room's "On timeout" setting.
-- **Winner detected mid-event** → finalization short-circuits any further effects and jumps to the winner screen.
+- **Host refreshes their tab** → the room is restored from the host's saved state and players auto-reconnect.
+- **A player refreshes / drops** → their stable `localStorage` id reconnects them to the same token; mid-game they're marked disconnected (dimmed) until they return.
+- **It's a disconnected player's turn** → the turn timer keeps the game moving (auto-roll or skip).
+- **Room code not found / host offline** → the joiner sees a "Connecting to the host…" screen and keeps retrying.
+- **Room full (5) / game already started / duplicate name** → the host rejects the join with a clear message.
+- **Two players act at once** → the host serialises actions and re-validates each, so only valid ones apply.
+- **Votes/challenges not finished in time** → the host resolves them by majority when the timer expires.
+- **Winner detected mid-event** → finalisation short-circuits and jumps to the winner screen.
 
 ---
 
 ## Testing checklist
 
-Manual tests that exercise the important paths:
-
 - [ ] Create a room on a laptop; join from up to 4 phones (try the share link too).
-- [ ] Refresh one player's browser mid-game — their token and turn order survive.
-- [ ] Try rolling when it isn't your turn — the button is disabled and the service rejects it.
-- [ ] Try to join a room that already has 5 players — rejected.
-- [ ] Trigger a 🗳️ vote tile; have everyone vote; confirm majority resolves (and the early-resolve when all have voted).
-- [ ] Land on a 🃏 power tile, then play **Swap Token** / **Friendship Tax** on a target.
+- [ ] Land on a 🎤 challenge — perform it and confirm the others' 👍/👎 vote moves you forward/back.
+- [ ] Trigger a 🗳️ vote tile; everyone votes; confirm majority resolves.
+- [ ] Use a 🃏 power card (Swap Token / Friendship Tax) on a target.
 - [ ] Hit a 🐍 snake while holding a **Shield** — confirm it blocks.
-- [ ] Reach tile 50 (or overshoot) — winner screen + awards appear for everyone.
-- [ ] Open the deployed Netlify URL on mobile data (not Wi-Fi) and play a full game.
+- [ ] Host **refreshes** mid-game — confirm the game resumes and players reconnect.
+- [ ] Reach tile 50 — winner screen + awards appear for everyone.
+- [ ] Open the deployed Netlify URL on mobile data and play a full game.
 
 ---
 
 ## Troubleshooting
 
-**"Firebase isn't configured" banner / `Firebase is not configured` error.**
-Your `.env` is missing or empty. Copy `.env.example` → `.env`, fill in all six `VITE_FIREBASE_*` values, and **restart** `npm run dev`. On Netlify, set them under *Site settings → Environment variables* and redeploy.
+**"Connecting to the host…" never finishes.**
+The host's tab must be open on the deployed site with that exact room code. Double-check the code, and that the host hasn't closed/backgrounded the tab. If you're on a strict corporate/VPN/firewalled network, peer connections may be blocked — try mobile data, or add a TURN server (below).
 
-**`Missing or insufficient permissions` (Firestore).**
-Either (a) you didn't publish `firestore.rules`, or (b) Anonymous Auth isn't enabled. The rules require an authenticated user, and the app signs in anonymously — so both must be in place. Enable **Authentication → Anonymous**, and **publish the rules**.
+**Players on some networks can't connect (works on others).**
+WebRTC needs to traverse NATs. STUN (configured) handles most home/mobile networks. Very strict networks need a **TURN relay**, which isn't free to run reliably. To add one, edit `ICE_SERVERS` in `src/net/protocol.ts`:
 
-**`Unsupported field value: undefined`.**
-Shouldn't happen — Firestore is initialized with `ignoreUndefinedProperties: true` in `src/firebase.ts`. If you add new optional fields, keep that setting.
+```ts
+export const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  // Add your TURN server (e.g. from Twilio, Metered, or self-hosted coturn):
+  { urls: "turn:YOUR_TURN_HOST:3478", username: "USER", credential: "PASS" },
+];
+```
 
-**Refreshing a deep link (e.g. `/room/ABCDE`) shows a 404 on Netlify.**
-Make sure `netlify.toml` (and/or `public/_redirects`) is deployed — both add the SPA fallback to `index.html`. They're included here by default.
+**The game resets when the host refreshes.**
+It should auto-resume — the host's state is saved to `localStorage` for 6 hours. If it doesn't, the host may have cleared site data, or more than 6 hours passed. Just start a new room.
 
-**Env vars not taking effect on Netlify.**
-Vite inlines env vars at **build time**. Set them first, then *Deploys → Trigger deploy → Clear cache and deploy site*.
-
-**Vars must start with `VITE_`.** Vite only exposes env vars prefixed with `VITE_` to the client. Don't rename them.
+**Deep link `/room/ABCDE` shows a 404 on Netlify.**
+Ensure `netlify.toml` / `public/_redirects` are deployed (they're included) — they route all paths to `index.html`.
 
 ---
 
 ## Customization guide
 
-Everything tunable lives in **`src/gameConfig.ts`** — no logic changes needed for most tweaks.
+Everything tunable lives in **`src/gameConfig.ts`** — most tweaks need no logic changes.
 
-**Add a chaos event:** append to `CHAOS_EVENTS`. Reuse an existing `effect` key (e.g. `"forward"`, `"back"`, `"viral-meme"`) for instant support, or add a new key and handle it in the `switch` inside `applyChaosEvent` in `src/utils/resolveTileEffect.ts`.
+**Add a chaos event:** append to `CHAOS_EVENTS`. Reuse an existing `effect` key (e.g. `"forward"`, `"back"`, `"viral-meme"`), or add a new key and handle it in the `switch` in `applyChaosEvent` (`src/utils/resolveTileEffect.ts`).
 
-```ts
-// gameConfig.ts
-{ id: "coffee-machine-broke", name: "Coffee Machine Broke", emoji: "☕",
-  description: "Productivity plummets.", effect: "back", amount: 3 },
-```
+**Add a challenge prompt:** add a string to the relevant array in `CHALLENGE_PROMPTS` (`Safe Funny` / `Office Funny` / `Family Friendly`).
 
-**Add a challenge prompt:** add a string to the relevant array in `CHALLENGE_PROMPTS` (`"Safe Funny"` / `"Office Funny"` / `"Family Friendly"`). Keep them harmless and group-appropriate.
+**Add a vote event:** append to `VOTE_EVENTS` with `options` that each declare an `effect` (`back`/`forward`/`challenge`/`nothing`) and optional `amount`.
 
-**Add a vote event:** append to `VOTE_EVENTS` with `options` that each declare an `effect` (`back` / `forward` / `challenge` / `nothing`) and optional `amount`. Resolution is automatic.
+**Add a power card:** append to `POWER_CARDS` (set `usable` / `needsTarget`), then handle its `id` in `doUsePower` (`src/game/engine.ts`). Passive cards (Shield, Ladder Insurance) auto-arm on draw.
 
-**Add a power card:** append to `POWER_CARDS`. Set `usable` (can be played from hand) and `needsTarget`. Then handle its `id` in the `switch` in `usePowerCard` (`src/services/gameService.ts`). Passive cards (like Shield) are auto-armed on draw in `resolveLanding`.
+**Rebalance the board:** change `TILE_DISTRIBUTION`, `BOARD_SIZE`, or `FINAL_ROUND_TILE`. Set `EXACT_ROLL_REQUIRED = true` for the classic "land exactly on 50" rule.
 
-**Add a theme / change the default:** edit `THEMES`, `THEME_BLURB`, and `DEFAULT_SETTINGS.theme`. (Themes currently drive flavour/copy; wire them to colour palettes in `index.css`/Tailwind if you want full re-skins.)
-
-**Rebalance the board:** change `TILE_DISTRIBUTION`, `BOARD_SIZE`, or `FINAL_ROUND_TILE` in `gameConfig.ts`. `EXACT_ROLL_REQUIRED = true` enables the classic "must land exactly on the finish" rule.
-
-**Add a funny award:** add a definition to `DEFS` in `src/utils/awards.ts` with a `pick` function over the per-player `stats`. Track new stats by incrementing them in the effect functions.
+**Add a funny award:** add a definition to `DEFS` in `src/utils/awards.ts` with a `pick` over per-player `stats`.
 
 ---
 
-## MVP vs. optional/advanced
+## What could come next (optional)
 
-**Implemented MVP (works end-to-end):** private rooms + codes + share links, lobby with host-configurable settings, real-time turn-based play, dice + auto-move, ladders/snakes, all special tiles (chaos/challenge/vote/power/collab), power cards (active + passive), cross-device voting, win detection + overshoot rule, winner screen with rankings + funny awards, restart, presence/heartbeat, turn timer with auto-roll/skip, reactions, and the full edge-case handling above.
-
-**Optional / advanced (good next steps, intentionally not in the MVP):**
-
-- **Server-authoritative moves (stricter rules).** Move `rollDice`/vote resolution into **Cloud Functions** (or the Firebase callable-functions) so clients can't write arbitrary positions. Then tighten `firestore.rules` to `allow update: if false` for game fields and let only the Functions service account mutate them. This is the right move for competitive/public deployments; it's overkill for invite-only friend groups.
-- **Sound effects** (dice, snake, ladder, win) — the UI is structured to add an audio layer; default muted.
-- **Temporary Alliance** and **Group Vote Rescue** collaboration variants (the data model supports adding them as new pending-event types).
-- **Automated tests** for `resolveTileEffect` / `turn` (they're pure functions — easy to unit test with Vitest).
-- **Stale-room cleanup** via a scheduled Cloud Function or Firestore TTL policy on `updatedAt`.
+- **A TURN server** for 100% connectivity on locked-down networks.
+- **Sound effects** (dice, snake, ladder, win) — default muted; the UI is structured to add them.
+- **Spectator mode** and **Temporary Alliance** mechanics.
+- **Unit tests** for `resolveTileEffect` / `engine` (pure functions — easy with Vitest).
 
 ---
 

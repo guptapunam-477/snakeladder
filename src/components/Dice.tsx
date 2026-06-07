@@ -20,14 +20,14 @@ const PIPS: Record<number, [number, number][]> = {
 function Face({ value }: { value: number }) {
   const pips = PIPS[value] || [];
   return (
-    <div className="grid h-14 w-14 grid-cols-3 grid-rows-3 gap-0.5 p-1.5">
+    <div className="grid h-16 w-16 grid-cols-3 grid-rows-3 gap-0.5 p-2">
       {Array.from({ length: 9 }).map((_, i) => {
         const r = Math.floor(i / 3);
         const c = i % 3;
         const on = pips.some(([pr, pc]) => pr === r && pc === c);
         return (
           <div key={i} className="flex items-center justify-center">
-            {on && <div className="h-2.5 w-2.5 rounded-full bg-slate-900" />}
+            {on && <div className="h-3 w-3 rounded-full bg-slate-900" />}
           </div>
         );
       })}
@@ -64,7 +64,9 @@ export default function Dice({ onRoll, disabled, value, rollKey }: Props) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div
-        className={`rounded-2xl bg-white shadow-lg ${spinning ? "animate-shake" : "animate-pop"}`}
+        className={`rounded-2xl bg-gradient-to-br from-white to-slate-200 shadow-[0_6px_0_rgba(0,0,0,0.25)] ${
+          spinning ? "animate-shake" : "animate-pop"
+        }`}
       >
         <Face value={display} />
       </div>

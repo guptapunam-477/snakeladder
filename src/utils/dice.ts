@@ -1,6 +1,5 @@
-// Dice helpers. Rolls are computed on whichever client owns the turn, then
-// committed inside a Firestore transaction. For a private party game this is
-// perfectly fine; the transaction prevents double-commits / race conditions.
+// Dice helpers. Rolls are computed by the authoritative host when it processes
+// a player's "roll" action, so every client sees the same result.
 
 export function rollDie(): number {
   return Math.floor(Math.random() * 6) + 1;

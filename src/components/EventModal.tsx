@@ -9,13 +9,7 @@ interface Props {
   onVote: (optionId: string) => void;
 }
 
-export default function EventModal({
-  room,
-  playerId,
-  onAcknowledge,
-  onChooseCollab,
-  onVote,
-}: Props) {
+export default function EventModal({ room, playerId, onAcknowledge, onChooseCollab, onVote }: Props) {
   const pe = room.pendingEvent;
   if (!pe) return null;
 
@@ -23,6 +17,11 @@ export default function EventModal({
   const isMine = pe.forPlayerId === playerId;
   const others = room.players.filter((p) => p.id !== pe.forPlayerId);
   const name = forPlayer?.name ?? "Player";
+
+  // live tally (used in the performer's read-only challenge view)
+  const votes = room.votes[pe.id] || {};
+  const good = Object.values(votes).filter((v) => v === "good").length;
+  const bad = Object.values(votes).filter((v) => v === "bad").length;
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-3 sm:items-center">
@@ -33,20 +32,18 @@ export default function EventModal({
         </div>
         <p className="text-sm text-slate-200">{pe.description}</p>
         {pe.effectText && (
-          <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300">
-            {pe.effectText}
-          </p>
+          <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300">{pe.effectText}</p>
         )}
 
         <div className="mt-4">
-          {/* INFO / POWER GRANT / CHALLENGE */}
-          {(pe.type === "info" || pe.type === "power-grant" || pe.type === "challenge") &&
+          {/* INFO / POWER GRANT — active player acknowledges */}
+          {(pe.type === "info" || pe.type === "power-grant") &&
             (isMine ? (
               <button
                 onClick={onAcknowledge}
                 className="w-full rounded-xl bg-emerald-500 py-3 font-bold text-white active:scale-95"
               >
-                {pe.type === "challenge" ? "✅ I did it!" : "Continue"}
+                Continue
               </button>
             ) : (
               <p className="text-center text-sm text-slate-400">
@@ -54,7 +51,21 @@ export default function EventModal({
               </p>
             ))}
 
-          {/* COLLAB: active player picks a target */}
+          {/* CHALLENGE — performer waits while everyone else judges */}
+          {pe.type === "challenge" &&
+            (isMine ? (
+              <div className="text-center">
+                <p className="text-sm text-amber-300">Perform it now — your friends are judging! 🎤</p>
+                <div className="mt-3 flex items-center justify-center gap-4 text-sm">
+                  <span className="rounded-lg bg-emerald-500/20 px-3 py-1 text-emerald-300">👍 {good}</span>
+                  <span className="rounded-lg bg-rose-500/20 px-3 py-1 text-rose-300">👎 {bad}</span>
+                </div>
+              </div>
+            ) : (
+              <VotePanel room={room} meId={playerId} onVote={onVote} />
+            ))}
+
+          {/* COLLAB — active player picks a target */}
           {pe.type === "collab" &&
             (isMine ? (
               <div className="flex flex-wrap gap-2">
@@ -75,10 +86,8 @@ export default function EventModal({
               </p>
             ))}
 
-          {/* VOTE: everyone votes */}
-          {pe.type === "vote" && (
-            <VotePanel room={room} meId={playerId} onVote={onVote} />
-          )}
+          {/* VOTE — everyone votes */}
+          {pe.type === "vote" && <VotePanel room={room} meId={playerId} onVote={onVote} />}
         </div>
       </div>
     </div>
