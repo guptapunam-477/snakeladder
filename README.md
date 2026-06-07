@@ -67,18 +67,27 @@ netlify deploy --prod --dir=dist
 
 ## How the game plays
 
-- **Board:** 50 tiles in a serpentine grid (5 × 10). Tile 1 is start, tile 50 is the finish (ringed in gold). Ladders and snakes are drawn as green/red connectors between tiles. Tile types are randomised per game.
-- **Turns:** only the current player can roll (1–6); the token slides to its new spot. A turn timer (15/30/45s, host-set) auto-rolls or skips on timeout.
-- **Overshoot rule:** rolling past 50 still lands you on 50 (keeps games short). First to 50 wins.
+- **Board:** a hand-designed, **recognizable** 50-tile board (5 × 10). Tile 1 is start, tile 50 the gold-ringed finish. **Snakes are drawn as actual snakes** — head (with eyes + tongue) sits on the higher tile and drops you to its tail on a lower tile, just like the classic game. **Ladders** are drawn with rails and rungs. Landing on a snake triggers a funny **💩 poop-drop** animation as you slide down.
+- **Turns:** only the current player can roll (1–6); the token slides to its new spot with a **3D rolling dice**. A turn timer (15/30/45s, host-set) auto-rolls or skips on timeout.
+- **Overshoot rule:** rolling past 50 still lands you on 50. First to 50 wins.
 - **Tile effects — every one has real stakes:**
-  - 🪜 **Ladder / 🐍 Snake** — jump forward / slide back.
-  - ⚡ **Chaos** — a random funny event with a real consequence (Corporate Restructure swap, Budget Cut, Fake Promotion, HR Complaint vote, Best-Friend Betrayal, Lucky Intern reroll, …).
-  - 🎤 **Challenge** — you perform a silly prompt **live, and your friends judge you**: most 👍 = forward 3 tiles, most 👎 = back 2. (Prompts respect the host's "Challenge Mode" so it stays office/family friendly.)
-  - 🗳️ **Vote** — everyone votes on your fate (back/forward/challenge). Majority wins; ties favour mercy.
+  - 🪜 **Ladder / 🐍 Snake** — climb up / slide down (with animation).
+  - ⚡ **Chaos** — a deterministic funny event: Corporate Restructure swap, Budget Cut, Fake Promotion, Lucky Intern reroll, **Office Politics (reverses turn order, UNO-style)**, and more.
+  - 🎤 **Challenge** — you perform a silly prompt **live, and the others judge you**. Approval (👍 ≥ 👎) moves you **forward 3**. Crucially, a biased group **can't gang up to punish you**: you only lose tiles (−2) if the disapproval is **unanimous** — one sympathetic friend (or a non-voter) saves you.
+  - 🗳️ **Vote** — a rare group vote on your fate. Majority wins; ties favour mercy.
   - 🃏 **Power** — draw a power card (Extra Dice, Shield, Friendship Tax, Chaos Bomb, Ladder Insurance, Swap Token).
-  - 🤝 **Collab** — choose another player to help forward 3 (or, via Betrayal chaos, to knock back — they get a revenge Shield).
+  - 🤝 **Collab** — help another player forward 3 (or, via Betrayal chaos, knock them back — they get a revenge Shield).
 - **Final-round chaos:** once anyone crosses tile 40, "Final Chaos" flips on for a spicy endgame.
-- **Winner screen:** final standings + auto-computed **funny awards** (Snake Magnet, Luckiest Intern, Chaos King, …) from stats tracked all game. Host can **Play Again** to reset with a fresh board.
+- **Winner screen:** final standings + auto-computed **funny awards** (Snake Magnet, Luckiest Intern, Chaos King, …). Host can **Play Again** to reset.
+
+**Designed so a "collective can't control the game":** the outcome leans on **deterministic** rules (dice, snakes, ladders, chaos, power cards). Group voting is deliberately rare and **can't be used to bully a single player** — challenges can only *reward* via majority; punishment needs near-unanimity.
+
+## Social features
+
+- 💬 **Text chat** — up to 50 characters per message, with a built-in cooldown so nobody can spam.
+- 🎯 **Throwable stickers** — fling 💩 / 🍅 / 🥚 / 💣 and more **at a specific player**; it flies across the board and splats on their token. There's a 3-second cooldown per throw (no spam).
+- 😂 **Quick reactions** — one-tap emoji reactions in the feed (rate-limited).
+- 🎙️ **Voice chat (beta)** — optional push-button peer-to-peer voice. Tap **🎙️ Voice** to grant mic access and talk to the room; **mute** anytime. Because it's a direct peer mesh with no relay server, it works on most home/mobile networks but can fail on strict corporate/VPN networks — it's isolated so it never affects the game itself.
 
 ---
 
@@ -179,10 +188,14 @@ Everything tunable lives in **`src/gameConfig.ts`** — most tweaks need no logi
 
 ## What could come next (optional)
 
-- **A TURN server** for 100% connectivity on locked-down networks.
-- **Sound effects** (dice, snake, ladder, win) — default muted; the UI is structured to add them.
+- **A TURN server** for 100% voice/data connectivity on locked-down networks (see Troubleshooting).
+- **Sound effects** (dice, snake, ladder, win) — the UI is structured to add them.
 - **Spectator mode** and **Temporary Alliance** mechanics.
 - **Unit tests** for `resolveTileEffect` / `engine` (pure functions — easy with Vitest).
+
+## Voice chat notes (beta)
+
+Voice uses a separate WebRTC peer mesh. Each participant grants mic access (browsers require **HTTPS** — Netlify is fine; on localhost it also works). If a participant is behind a strict NAT/firewall, their audio may not connect even though the game does — add a TURN server (same `ICE_SERVERS` in `src/net/protocol.ts`) for full reliability. Voice failures are caught and never interrupt the game.
 
 ---
 

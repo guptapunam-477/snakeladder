@@ -38,3 +38,76 @@ textarea {
   background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
 }
+
+/* ---- Board effect animations (flung stickers, snake poop-drop, splats) ---- */
+@keyframes cl-fling {
+  0% {
+    left: var(--sx);
+    top: var(--sy);
+    transform: translate(-50%, -50%) scale(0.9) rotate(0deg);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: var(--ex);
+    top: var(--ey);
+    transform: translate(-50%, -50%) scale(0.7) rotate(540deg);
+    opacity: 0;
+  }
+}
+@keyframes cl-drop {
+  0% {
+    left: var(--sx);
+    top: var(--sy);
+    transform: translate(-50%, -50%) rotate(0deg);
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    left: var(--ex);
+    top: var(--ey);
+    transform: translate(-50%, -50%) rotate(160deg);
+    opacity: 0.85;
+  }
+}
+@keyframes cl-splat {
+  0% {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+  }
+  35% {
+    transform: translate(-50%, -50%) scale(1.4);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.05);
+    opacity: 0;
+  }
+}
+@keyframes cl-rise {
+  0% {
+    transform: translate(-50%, -50%) translateY(6px) scale(0.6);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) translateY(-22px) scale(1.1);
+    opacity: 0;
+  }
+}
+@keyframes cl-screenshake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-3px, 2px); }
+  40% { transform: translate(3px, -2px); }
+  60% { transform: translate(-2px, -2px); }
+  80% { transform: translate(2px, 2px); }
+}
+.cl-shake {
+  animation: cl-screenshake 0.45s ease-in-out;
+}

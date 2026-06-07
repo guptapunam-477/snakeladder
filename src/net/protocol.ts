@@ -28,6 +28,9 @@ export type Action =
   | { kind: "usePower"; cardId: string; targetId?: string }
   | { kind: "vote"; optionId: string }
   | { kind: "reaction"; emoji: string }
+  | { kind: "chat"; text: string }
+  | { kind: "fling"; targetId: string; sticker: string }
+  | { kind: "setVoice"; voicePeerId: string | null }
   | { kind: "leave" };
 
 // Client -> Host messages.

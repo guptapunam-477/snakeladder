@@ -127,6 +127,7 @@ export interface ChaosEventDef {
     | "roll-again"
     | "budget-cut"
     | "viral-meme"
+    | "reverse"
     | "back"
     | "forward";
   amount?: number;
@@ -202,6 +203,13 @@ export const CHAOS_EVENTS: ChaosEventDef[] = [
     emoji: "📈",
     description: "You went viral for the right reasons.",
     effect: "viral-meme",
+  },
+  {
+    id: "office-politics",
+    name: "Office Politics",
+    emoji: "🔄",
+    description: "The org chart flips upside down.",
+    effect: "reverse",
   },
 ];
 
@@ -345,3 +353,26 @@ export const POWER_CARDS: PowerCardDef[] = [
 export const POWER_CARD_MAP: Record<string, PowerCardDef> = Object.fromEntries(
   POWER_CARDS.map((c) => [c.id, c])
 );
+
+// ---------------------------------------------------------------------------
+// SOCIAL: chat + throwable stickers (with anti-spam cooldowns)
+// ---------------------------------------------------------------------------
+
+export const CHAT_MAX_LEN = 50;
+export const CHAT_COOLDOWN_MS = 1200; // min gap between a player's messages
+export const CHAT_LOG_LIMIT = 60; // keep last N chat messages
+export const FLING_COOLDOWN_MS = 3000; // min gap between sticker throws
+export const FLING_LIMIT = 12; // keep last N flings for animation
+export const REACTION_COOLDOWN_MS = 1000;
+
+// Stickers you can throw AT another player (they splat on the target's token).
+export const STICKERS: { emoji: string; label: string }[] = [
+  { emoji: "💩", label: "Poop" },
+  { emoji: "🍅", label: "Tomato" },
+  { emoji: "🥚", label: "Egg" },
+  { emoji: "💣", label: "Bomb" },
+  { emoji: "🤡", label: "Clown" },
+  { emoji: "👑", label: "Crown" },
+  { emoji: "❤️", label: "Love" },
+  { emoji: "😂", label: "LOL" },
+];

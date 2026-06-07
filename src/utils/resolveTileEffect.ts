@@ -188,6 +188,11 @@ export function applyChaosEvent(
       pushFeed(room, { type: "chaos", emoji: def.emoji, message: `${player.name} went viral — forward 4!` });
       return baseInfo("You went viral! Forward 4 tiles.");
     }
+    case "reverse": {
+      room.turnDir = room.turnDir === 1 ? -1 : 1;
+      pushFeed(room, { type: "chaos", emoji: def.emoji, message: `Turn order REVERSED by ${player.name}!` });
+      return baseInfo("The turn order is now reversed. UNO vibes.");
+    }
     case "forward": {
       movePlayerBy(room, player, def.amount ?? 2);
       return baseInfo(`Forward ${def.amount ?? 2} tiles.`);
@@ -251,9 +256,11 @@ export function resolveLanding(room: Room, player: Player): PendingEvent | null 
       return null;
 
     case "ladder": {
+      const from = player.position;
       const to = tile.to ?? player.position;
       setPositionTo(room, player, to);
       player.stats.laddersHit += 1;
+      room.lastFx = { id: uid("fx"), playerId: player.id, kind: "ladder", from, to: player.position };
       pushFeed(room, { type: "movement", emoji: "🪜", message: `${player.name} climbed a ladder to tile ${player.position}!` });
       if (detectAndApplyWinner(room)) return null;
       return {
@@ -288,9 +295,11 @@ export function resolveLanding(room: Room, player: Player): PendingEvent | null 
         to = reduced;
         pushFeed(room, { type: "power", emoji: "📉", message: `${player.name}'s Ladder Insurance softened the snake bite.` });
       }
+      const snakeFrom = player.position;
       setPositionTo(room, player, to);
       player.stats.snakesHit += 1;
-      pushFeed(room, { type: "movement", emoji: "🐍", message: `${player.name} hit a snake and slid to tile ${player.position}.` });
+      room.lastFx = { id: uid("fx"), playerId: player.id, kind: "snake", from: snakeFrom, to: player.position };
+      pushFeed(room, { type: "movement", emoji: "🐍", message: `${player.name} got chomped by a snake and slid to tile ${player.position}!` });
       return {
         id: uid("ev"), type: "info", title: "Snake!",
         description: "Down you go.", effectText: `You slid down to tile ${player.position}.`,

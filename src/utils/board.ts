@@ -1,62 +1,66 @@
 import type { Tile, TileType } from "../types";
-import { BOARD_SIZE, TILE_DISTRIBUTION } from "../gameConfig";
+import { BOARD_SIZE } from "../gameConfig";
 
 // ---------------------------------------------------------------------------
-// Board generation.
-// Produces a deterministic-but-random 50-tile board with a sensible spread of
-// special tiles. Ladders always go forward, snakes always go backward, and
-// tile 1 and tile 50 are always normal so the start/finish are clean.
+// CURATED board layout.
+// Unlike a random scatter, this is a hand-designed, recognizable Snakes &
+// Ladders board: ladders climb, snakes (head on the higher tile) drop you to a
+// lower tile, and the rest of the special tiles are placed for good pacing.
+// A fixed layout makes the board readable and the snakes/ladders draw cleanly.
 // ---------------------------------------------------------------------------
 
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+// ladder: bottom tile -> top tile (climb up)
+const LADDERS: Record<number, number> = {
+  3: 16,
+  8: 22,
+  14: 31,
+  21: 38,
+  28: 45,
+  36: 48,
+};
+
+// snake: head tile (higher) -> tail tile (lower). Land on the head, slide down.
+const SNAKES: Record<number, number> = {
+  47: 26,
+  43: 18,
+  39: 11,
+  33: 6,
+  25: 7,
+  19: 4,
+};
+
+// other special tiles
+const SPECIALS: Record<number, TileType> = {
+  5: "chaos",
+  12: "chaos",
+  17: "chaos",
+  24: "chaos",
+  30: "chaos",
+  41: "chaos",
+  46: "chaos",
+  9: "power",
+  34: "power",
+  44: "power",
+  15: "challenge",
+  37: "challenge",
+  23: "vote",
+  42: "vote",
+  32: "collab",
+  49: "collab",
+};
 
 export function generateBoard(): Tile[] {
-  // Tiles 2..49 are eligible for special types (1 and 50 stay normal).
-  const eligible: number[] = [];
-  for (let i = 2; i <= BOARD_SIZE - 1; i++) eligible.push(i);
-
-  // Build a list of special types to assign based on the distribution weights.
-  const specialTypes: TileType[] = [];
-  (Object.keys(TILE_DISTRIBUTION) as TileType[]).forEach((type) => {
-    if (type === "normal") return;
-    const count = Math.round(TILE_DISTRIBUTION[type] * BOARD_SIZE);
-    for (let i = 0; i < count; i++) specialTypes.push(type);
-  });
-
-  const slots = shuffle(eligible);
-  const tileType: Record<number, TileType> = {};
-  for (let i = 1; i <= BOARD_SIZE; i++) tileType[i] = "normal";
-
-  for (let i = 0; i < specialTypes.length && i < slots.length; i++) {
-    tileType[slots[i]] = specialTypes[i];
-  }
-
-  // Build tiles, wiring up ladder/snake destinations.
   const tiles: Tile[] = [];
   for (let i = 1; i <= BOARD_SIZE; i++) {
-    const type = tileType[i];
-    const tile: Tile = { index: i, type };
-
-    if (type === "ladder") {
-      // Forward jump of 4..10 tiles, capped just below the finish.
-      const jump = 4 + Math.floor(Math.random() * 7);
-      tile.to = Math.min(BOARD_SIZE - 1, i + jump);
-      if (tile.to <= i) tile.to = Math.min(BOARD_SIZE - 1, i + 4);
-    } else if (type === "snake") {
-      // Backward slide of 3..9 tiles, floored at tile 2.
-      const slide = 3 + Math.floor(Math.random() * 7);
-      tile.to = Math.max(2, i - slide);
-      if (tile.to >= i) tile.to = Math.max(2, i - 3);
+    if (LADDERS[i] !== undefined) {
+      tiles.push({ index: i, type: "ladder", to: LADDERS[i] });
+    } else if (SNAKES[i] !== undefined) {
+      tiles.push({ index: i, type: "snake", to: SNAKES[i] });
+    } else if (SPECIALS[i] !== undefined) {
+      tiles.push({ index: i, type: SPECIALS[i] });
+    } else {
+      tiles.push({ index: i, type: "normal" });
     }
-    tiles.push(tile);
   }
-
   return tiles;
 }

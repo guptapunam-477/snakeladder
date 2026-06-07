@@ -59,9 +59,13 @@ export function makeRoom(args: {
     board: generateBoard(),
     players: [args.host],
     turnIndex: 0,
+    turnDir: 1,
     turnStartedAt: 0,
     rolling: false,
     lastRoll: null,
+    lastFx: null,
+    chat: [],
+    flings: [],
     pendingEvent: null,
     votes: {},
     feed: [

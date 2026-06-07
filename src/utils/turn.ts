@@ -8,9 +8,10 @@ export function advanceTurn(room: Room) {
   room.rolling = false;
   if (n === 0) return;
 
+  const dir = room.turnDir === -1 ? -1 : 1;
   let idx = room.turnIndex;
   for (let i = 0; i < n; i++) {
-    idx = (idx + 1) % n;
+    idx = (idx + dir + n) % n;
     const p = room.players[idx];
     if (p.skipNextTurn) {
       p.skipNextTurn = false;

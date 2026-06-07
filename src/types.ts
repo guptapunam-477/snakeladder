@@ -72,6 +72,40 @@ export interface Player {
   extraDiceNext: boolean;
   rollAgain: boolean;
   stats: PlayerStats;
+  // social / anti-spam timestamps (ms epoch), enforced by the host
+  lastChatAt?: number;
+  lastFlingAt?: number;
+  lastReactionAt?: number;
+  // peer id used for the (optional) voice mesh
+  voicePeerId?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  name: string;
+  color: string;
+  text: string;
+  ts: number;
+}
+
+// An ephemeral "thrown sticker" used to trigger a fling animation on clients.
+export interface Fling {
+  id: string;
+  fromId: string;
+  fromName: string;
+  toId: string;
+  sticker: string;
+  ts: number;
+}
+
+// A transient board effect (snake bite / ladder climb) clients animate once.
+export interface BoardFx {
+  id: string;
+  playerId: string;
+  kind: "snake" | "ladder";
+  from: number;
+  to: number;
 }
 
 // A pending interactive event that pauses the turn until resolved.
@@ -132,9 +166,13 @@ export interface Room {
   board: Tile[]; // 50 tiles, generated at room creation
   players: Player[];
   turnIndex: number; // index into players[] of whose turn it is
+  turnDir: 1 | -1; // turn order direction (UNO-style reverse)
   turnStartedAt: number; // ms epoch — used by the client timer
-  rolling: boolean; // transaction lock to prevent double rolls
+  rolling: boolean; // lock to prevent double rolls
   lastRoll: { playerId: string; value: number; rolls?: number[]; ts: number } | null;
+  lastFx: BoardFx | null; // last snake/ladder animation trigger
+  chat: ChatMessage[]; // capped chat log
+  flings: Fling[]; // capped recent sticker throws (for animation)
   pendingEvent: PendingEvent | null;
   // votes are stored as { [eventId]: { [voterId]: optionId } }
   votes: Record<string, Record<string, string>>;

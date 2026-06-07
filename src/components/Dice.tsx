@@ -4,8 +4,7 @@ interface Props {
   onRoll: () => void | Promise<void>;
   disabled?: boolean;
   value?: number | null;
-  // bump this whenever a new roll lands so we can animate
-  rollKey?: number;
+  rollKey?: number; // changes whenever a new roll result lands
 }
 
 const PIPS: Record<number, [number, number][]> = {
@@ -17,10 +16,35 @@ const PIPS: Record<number, [number, number][]> = {
   6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]],
 };
 
+const SIZE = 64;
+const HALF = SIZE / 2;
+
+// Cube rotation (deg) that brings each value to the front face.
+const FACE_ROT: Record<number, { x: number; y: number }> = {
+  1: { x: 0, y: 0 },
+  6: { x: 0, y: 180 },
+  3: { x: 0, y: -90 },
+  4: { x: 0, y: 90 },
+  2: { x: -90, y: 0 },
+  5: { x: 90, y: 0 },
+};
+
+const FACE_TRANSFORMS: Record<number, string> = {
+  1: `rotateY(0deg) translateZ(${HALF}px)`,
+  6: `rotateY(180deg) translateZ(${HALF}px)`,
+  3: `rotateY(90deg) translateZ(${HALF}px)`,
+  4: `rotateY(-90deg) translateZ(${HALF}px)`,
+  2: `rotateX(90deg) translateZ(${HALF}px)`,
+  5: `rotateX(-90deg) translateZ(${HALF}px)`,
+};
+
 function Face({ value }: { value: number }) {
   const pips = PIPS[value] || [];
   return (
-    <div className="grid h-16 w-16 grid-cols-3 grid-rows-3 gap-0.5 p-2">
+    <div
+      className="absolute grid grid-cols-3 grid-rows-3 gap-0.5 rounded-xl bg-gradient-to-br from-white to-slate-200 p-2 shadow-inner"
+      style={{ width: SIZE, height: SIZE, transform: FACE_TRANSFORMS[value], backfaceVisibility: "hidden" }}
+    >
       {Array.from({ length: 9 }).map((_, i) => {
         const r = Math.floor(i / 3);
         const c = i % 3;
@@ -36,46 +60,58 @@ function Face({ value }: { value: number }) {
 }
 
 export default function Dice({ onRoll, disabled, value, rollKey }: Props) {
-  const [display, setDisplay] = useState<number>(value || 1);
-  const [spinning, setSpinning] = useState(false);
+  const [rot, setRot] = useState({ x: -20, y: 20 });
+  const [rolling, setRolling] = useState(false);
+  const spins = useRef(0);
   const lastKey = useRef<number | undefined>(rollKey);
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Animate a quick shuffle whenever a new roll value arrives.
+  // Settle the cube on the rolled value whenever a new result arrives.
   useEffect(() => {
-    if (rollKey === undefined || rollKey === lastKey.current) {
-      if (value) setDisplay(value);
-      return;
-    }
+    if (rollKey === undefined || !value) return;
+    if (rollKey === lastKey.current && !rolling) return;
     lastKey.current = rollKey;
-    setSpinning(true);
-    let ticks = 0;
-    const iv = setInterval(() => {
-      setDisplay(Math.floor(Math.random() * 6) + 1);
-      ticks++;
-      if (ticks > 8) {
-        clearInterval(iv);
-        if (value) setDisplay(value);
-        setSpinning(false);
-      }
-    }, 60);
-    return () => clearInterval(iv);
+    spins.current += 2;
+    const base = FACE_ROT[value] || { x: 0, y: 0 };
+    setRot({ x: base.x + 360 * spins.current, y: base.y + 360 * spins.current });
+    setRolling(false);
+    if (timeout.current) clearTimeout(timeout.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rollKey, value]);
 
+  const handleRoll = () => {
+    if (rolling || disabled) return;
+    setRolling(true);
+    // keep the cube tumbling until the value arrives; safety reset after 2.5s
+    spins.current += 3;
+    setRot((r) => ({ x: r.x + 540, y: r.y + 720 }));
+    if (timeout.current) clearTimeout(timeout.current);
+    timeout.current = setTimeout(() => setRolling(false), 2500);
+    onRoll();
+  };
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div
-        className={`rounded-2xl bg-gradient-to-br from-white to-slate-200 shadow-[0_6px_0_rgba(0,0,0,0.25)] ${
-          spinning ? "animate-shake" : "animate-pop"
-        }`}
-      >
-        <Face value={display} />
+    <div className="flex flex-col items-center gap-3">
+      <div style={{ width: SIZE, height: SIZE, perspective: 320 }}>
+        <div
+          className="relative h-full w-full"
+          style={{
+            transformStyle: "preserve-3d",
+            transform: `rotateX(${rot.x}deg) rotateY(${rot.y}deg)`,
+            transition: rolling ? "transform 0.5s cubic-bezier(.3,.7,.4,1)" : "transform 0.9s cubic-bezier(.2,.8,.3,1.1)",
+          }}
+        >
+          {[1, 2, 3, 4, 5, 6].map((v) => (
+            <Face key={v} value={v} />
+          ))}
+        </div>
       </div>
       <button
-        onClick={() => onRoll()}
-        disabled={disabled || spinning}
-        className="rounded-xl bg-emerald-500 px-6 py-3 text-base font-bold text-white shadow-md transition active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
+        onClick={handleRoll}
+        disabled={disabled || rolling}
+        className="rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-6 py-3 text-base font-bold text-white shadow-[0_4px_0_rgb(5,120,75)] transition active:translate-y-0.5 active:shadow-[0_2px_0_rgb(5,120,75)] disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-700 disabled:shadow-none"
       >
-        {spinning ? "Rolling…" : "🎲 Roll Dice"}
+        {rolling ? "Rolling…" : "🎲 Roll"}
       </button>
     </div>
   );

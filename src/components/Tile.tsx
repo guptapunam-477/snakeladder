@@ -23,9 +23,9 @@ export default function Tile({ tile }: Props) {
 
   return (
     <div
-      className={`relative flex aspect-square min-w-0 flex-col rounded-md border border-white/5 p-0.5 ${
+      className={`relative flex aspect-square min-w-0 flex-col border border-white/5 p-0.5 ${
         TYPE_BG[tile.type]
-      } ${isFinish ? "ring-2 ring-yellow-400" : ""}`}
+      } ${isFinish ? "z-10 ring-2 ring-inset ring-yellow-400" : ""}`}
     >
       <div className="flex items-center justify-between leading-none">
         <span className="text-[9px] font-semibold text-white/40">{tile.index}</span>

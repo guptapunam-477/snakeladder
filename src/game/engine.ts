@@ -7,8 +7,14 @@ import { rollDie, rollBetterOfTwo } from "../utils/dice";
 import {
   CHALLENGE_PROMPTS,
   CHAOS_EVENTS,
+  CHAT_COOLDOWN_MS,
+  CHAT_LOG_LIMIT,
+  CHAT_MAX_LEN,
+  FLING_COOLDOWN_MS,
+  FLING_LIMIT,
   MAX_PLAYERS,
   POWER_CARD_MAP,
+  REACTION_COOLDOWN_MS,
   VOTE_EVENTS,
 } from "../gameConfig";
 import {
@@ -122,6 +128,12 @@ export function applyAction(room: Room, playerId: string, action: Action) {
       return doVote(room, playerId, action.optionId);
     case "reaction":
       return doReaction(room, playerId, action.emoji);
+    case "chat":
+      return doChat(room, playerId, action.text);
+    case "fling":
+      return doFling(room, playerId, action.targetId, action.sticker);
+    case "setVoice":
+      return doSetVoice(room, playerId, action.voicePeerId);
     case "leave":
       return removePlayer(room, playerId);
   }
@@ -150,9 +162,12 @@ function doRestart(room: Room, playerId: string) {
   room.status = "waiting";
   room.board = generateBoard();
   room.turnIndex = 0;
+  room.turnDir = 1;
   room.turnStartedAt = 0;
   room.rolling = false;
   room.lastRoll = null;
+  room.lastFx = null;
+  room.flings = [];
   room.pendingEvent = null;
   room.votes = {};
   room.winnerId = null;
@@ -331,8 +346,43 @@ function doUsePower(room: Room, playerId: string, cardId: string, targetId?: str
 function doReaction(room: Room, playerId: string, emoji: string) {
   const p = findPlayer(room, playerId);
   if (!p) return;
+  const now = Date.now();
+  if (p.lastReactionAt && now - p.lastReactionAt < REACTION_COOLDOWN_MS) throw new Error("__silent");
+  p.lastReactionAt = now;
   const safe = (emoji || "👍").slice(0, 4);
   pushFeed(room, { type: "reaction", emoji: safe, message: `${p.name} reacted ${safe}` });
+}
+
+function doChat(room: Room, playerId: string, text: string) {
+  const p = findPlayer(room, playerId);
+  if (!p) return;
+  const now = Date.now();
+  if (p.lastChatAt && now - p.lastChatAt < CHAT_COOLDOWN_MS) throw new Error("__silent");
+  const clean = (text || "").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_LEN);
+  if (!clean) throw new Error("__silent");
+  p.lastChatAt = now;
+  room.chat.push({ id: uid("c"), playerId, name: p.name, color: p.color, text: clean, ts: now });
+  if (room.chat.length > CHAT_LOG_LIMIT) room.chat = room.chat.slice(room.chat.length - CHAT_LOG_LIMIT);
+}
+
+function doFling(room: Room, playerId: string, targetId: string, sticker: string) {
+  const from = findPlayer(room, playerId);
+  const to = findPlayer(room, targetId);
+  if (!from || !to || to.id === from.id) throw new Error("__silent");
+  const now = Date.now();
+  if (from.lastFlingAt && now - from.lastFlingAt < FLING_COOLDOWN_MS) throw new Error("__silent");
+  const safe = (sticker || "💩").slice(0, 4);
+  from.lastFlingAt = now;
+  room.flings.push({ id: uid("fl"), fromId: playerId, fromName: from.name, toId: targetId, sticker: safe, ts: now });
+  if (room.flings.length > FLING_LIMIT) room.flings = room.flings.slice(room.flings.length - FLING_LIMIT);
+  pushFeed(room, { type: "reaction", emoji: safe, message: `${from.name} threw ${safe} at ${to.name}!` });
+}
+
+function doSetVoice(room: Room, playerId: string, voicePeerId: string | null) {
+  const p = findPlayer(room, playerId);
+  if (!p) return;
+  if (voicePeerId) p.voicePeerId = voicePeerId;
+  else delete p.voicePeerId;
 }
 
 // --- voting + challenges ---------------------------------------------------
@@ -385,17 +435,23 @@ function resolveVote(room: Room) {
   }
 
   // --- peer-judged challenge ---
+  // Bias-resistant: a challenge can EARN you tiles, but a biased majority can't
+  // punish you. You only lose tiles if EVERY judge disapproves (near-unanimous).
+  // One sympathetic friend (or an abstainer) is enough to save you.
   if (pe.type === "challenge") {
     const good = counts["good"] || 0;
     const bad = counts["bad"] || 0;
+    const eligibleCount = eligible.length;
     if (totalCast === 0) {
       pushFeed(room, { type: "challenge", emoji: "🤷", message: `No one judged ${target.name}'s challenge — they're off the hook.` });
     } else if (good >= bad) {
       movePlayerBy(room, target, 3);
       pushFeed(room, { type: "challenge", emoji: "🎉", message: `The crowd approved! ${target.name} moves forward 3.` });
-    } else {
+    } else if (bad >= eligibleCount && eligibleCount > 0) {
       movePlayerBy(room, target, -2);
-      pushFeed(room, { type: "challenge", emoji: "🙅", message: `Tough crowd. ${target.name} moves back 2.` });
+      pushFeed(room, { type: "challenge", emoji: "🙅", message: `Unanimous boo! ${target.name} moves back 2.` });
+    } else {
+      pushFeed(room, { type: "challenge", emoji: "😐", message: `Mixed reviews for ${target.name} — no change.` });
     }
     detectAndApplyWinner(room);
     if (room.status !== "completed") endTurnOrContinue(room);
